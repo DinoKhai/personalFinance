@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KhaiFin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-left">
+      <button id="btn-nav-toggle" class="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+          <path d="M9 7v10"></path>
+          <path d="m13 9 3 3-3 3"></path>
+        </svg>
+      </button>
+      <h1 class="brand">
+        <span class="app-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" focusable="false">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 6.4v11.2M14.8 8.8c-.6-.8-1.7-1.3-2.8-1.3-1.9 0-3.3 1-3.3 2.4 0 3.9 6.7 1.8 6.7 5 0 1.4-1.3 2.4-3.4 2.4-1.3 0-2.5-.5-3.3-1.4"></path>
+          </svg>
+        </span>
+        <span class="brand-text">KhaiFin</span>
+      </h1>
+    </div>
+  </header>
+  <div class="app">
+    <aside class="sidebar card">
+      <nav id="nav" class="nav"></nav>
+      <div class="sidebar-actions nav-group">
+        <div class="nav-group-title">Actions</div>
+        <button id="btn-export" class="btn ghost side-action-btn">
+          <span class="side-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10"></path><path d="m8.5 10.5 3.5 3.5 3.5-3.5"></path><path d="M5 18h14"></path></svg>
+          </span>
+          <span>Export Excel</span>
+        </button>
+        <label class="btn ghost side-action-btn file-btn">
+          <span class="side-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 20V10"></path><path d="m8.5 13.5 3.5-3.5 3.5 3.5"></path><path d="M5 6h14"></path></svg>
+          </span>
+          <span>Import Excel</span>
+          <input id="file-import" type="file" accept=".xlsx,.xlsm,.xls">
+        </label>
+        <button id="btn-theme" class="btn ghost side-action-btn">
+          <span class="side-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v2"></path><path d="M12 19v2"></path><path d="m4.9 4.9 1.4 1.4"></path><path d="m17.7 17.7 1.4 1.4"></path><path d="M3 12h2"></path><path d="M19 12h2"></path><path d="m4.9 19.1 1.4-1.4"></path><path d="m17.7 6.3 1.4-1.4"></path><circle cx="12" cy="12" r="4"></circle></svg>
+          </span>
+          <span>Toggle Theme</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div id="page-kicker" class="kicker">Dashboard</div>
+          <h2 id="page-title">Overview</h2>
+        </div>
+      </header>
+      <section id="page-content"></section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/finance.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
