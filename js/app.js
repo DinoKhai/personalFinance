@@ -1,5 +1,5 @@
 (function () {
-  const { load, save, export: exportJson, importFile, nextId } = window.KhaiFinStorage;
+  const { load, save, export: exportJson, importFile } = window.KhaiFinStorage;
   const M = window.KhaiFinMath;
   const U = window.KhaiFinUI;
 
@@ -189,7 +189,7 @@
       </div>
     `;
     const fields = [
-      ["Fixed annual salary (excl. phone & cab)", "fixed_salary"], ["Appraisal (%)", "appraisal"], ["Office days / month", "office_days"],
+      ["Fixed annual salary", "fixed_salary"], ["Appraisal (%)", "appraisal"], ["Office days / month", "office_days"],
       ["Cab rate / day", "cab_rate"], ["Part B annual", "part_b"], ["PF / month", "pf"],
     ];
     page.querySelector("#btn-pay-toggle").addEventListener("click", () => {
@@ -294,6 +294,17 @@
             ${U.statCard("CAGR (Projection Input)", `${n(state.settings.projection_cagr).toFixed(2)}%`)}
           </div>`;
       })() : "";
+      const expenseTotal = entityKey === "expenses" ? draft.reduce((s, r) => s + n(r.amount), 0) : 0;
+      const fundTotals = entityKey === "funds" ? (() => {
+        const invested = draft.reduce((s, r) => s + n(r.invested), 0);
+        const current = draft.reduce((s, r) => s + n(r.current), 0);
+        const units = draft.reduce((s, r) => s + n(r.units), 0);
+        const sip = draft.reduce((s, r) => s + n(r.sip), 0);
+        const abs = current - invested;
+        const absPct = invested ? (abs / invested) * 100 : 0;
+        const unitsText = units % 1 === 0 ? String(units) : units.toFixed(3).replace(/\.?0+$/, "");
+        return { invested, current, units, unitsText, sip, abs, absPct };
+      })() : null;
       const rows = draft.map((row, i) => {
         const selectCell = editMode ? `<td class="center"><input type="checkbox" data-check="${i}" ${checked.has(i) ? "checked" : ""}></td>` : "";
         const cells = columns.map((c) => {
@@ -309,6 +320,27 @@
         }).join("");
         return `<tr>${selectCell}${cells}</tr>`;
       }).join("");
+      const totalRow = entityKey === "expenses" ? (() => {
+        const selectCell = editMode ? "<td></td>" : "";
+        const cells = columns.map((c, idx) => {
+          if (c.key === "amount") return `<td class="num"><strong>${U.fmtINR(expenseTotal)}</strong></td>`;
+          if (idx === 0) return "<td><strong>Total Monthly Outflow</strong></td>";
+          return "<td></td>";
+        }).join("");
+        return `<tr class="cashflow-total-row">${selectCell}${cells}</tr>`;
+      })() : entityKey === "funds" ? (() => {
+        const selectCell = editMode ? "<td></td>" : "";
+        const cells = columns.map((c, idx) => {
+          if (c.key === "invested") return `<td class="num"><strong>${U.fmtINR(fundTotals.invested)}</strong></td>`;
+          if (c.key === "current") return `<td class="num"><strong>${U.fmtINR(fundTotals.current)}</strong></td>`;
+          if (c.key === "units") return `<td class="num"><strong>${U.esc(fundTotals.unitsText)}</strong></td>`;
+          if (c.key === "sip") return `<td class="num"><strong>${U.fmtINR(fundTotals.sip)}</strong></td>`;
+          if (c.key === "_absolute_return") return `<td class="num"><strong>${U.fmtINR(fundTotals.abs)} (${fundTotals.absPct.toFixed(2)}%)</strong></td>`;
+          if (idx === 0) return "<td><strong>Total</strong></td>";
+          return "<td></td>";
+        }).join("");
+        return `<tr class="cashflow-total-row">${selectCell}${cells}</tr>`;
+      })() : "";
 
       page.innerHTML = `
         ${summaryHtml}
@@ -322,9 +354,12 @@
             <span class="tag">${editMode ? "EDIT MODE ON" : "View mode"}</span>
           </div>
           <div class="table-shell">
-            <table>
+            <table class="entity-table entity-${entityKey} ${editMode ? "is-editing" : ""}">
               <thead><tr>${editMode ? "<th class='center'>✓</th>" : ""}${columns.map((c) => `<th class="${c.numeric ? "num" : (c.center ? "center" : "")}">${U.esc(c.label)}</th>`).join("")}</tr></thead>
-              <tbody>${rows}</tbody>
+              <tbody>
+                ${rows}
+                ${totalRow}
+              </tbody>
             </table>
           </div>
         </div>
@@ -348,9 +383,9 @@
             if (String(r[c.key] ?? "").trim() === "") return alert(`${c.label} cannot be blank`);
           }
         }
-        const committed = draft.map((r) => {
+        const committed = draft.map((r, idx) => {
           const out = { ...r };
-          if (!out.id) out.id = nextId(rowsOriginal.concat(draft));
+          out.id = idx + 1;
           for (const k of numericKeys) out[k] = n(out[k]);
           return out;
         });
@@ -464,99 +499,200 @@
   function renderCompare() {
     const s = state.settings;
     const cmp = state.settings._compare || {};
-    const aFixedSalary = cmp.a_fixed_salary != null ? cmp.a_fixed_salary : n(s.fixed_salary);
-    const aAppraisal  = cmp.a_appraisal  != null ? cmp.a_appraisal  : n(s.appraisal);
-    const bFixedSalary = cmp.b_fixed_salary != null ? cmp.b_fixed_salary : n(s.fixed_salary);
-    const bAppraisal  = cmp.b_appraisal  != null ? cmp.b_appraisal  : n(s.appraisal);
+    const compareInputsExpanded = state.settings.compare_inputs_expanded !== false;
+    const compareSummaryExpanded = state.settings.compare_summary_expanded !== false;
 
-    function calc(fixedSalary, appraisal) {
-      return M.payroll({ ...s, fixed_salary: fixedSalary, appraisal });
+    function appraisalLabel(value) {
+      const v = n(value);
+      return `${Number.isInteger(v) ? v : v}%`;
+    }
+
+    function defaultScenarios() {
+      return [
+        { id: "cmp-1", fixed_salary: n(s.fixed_salary), appraisal: 0 },
+        { id: "cmp-2", fixed_salary: n(s.fixed_salary), appraisal: n(s.appraisal) },
+      ];
+    }
+
+    function normalizeScenarios() {
+      if (Array.isArray(cmp.scenarios) && cmp.scenarios.length) {
+        return cmp.scenarios.map((row, i) => ({
+          id: String(row.id || `cmp-${i + 1}`),
+          fixed_salary: n(row.fixed_salary),
+          appraisal: n(row.appraisal),
+        }));
+      }
+      if (cmp.a_fixed_salary != null || cmp.b_fixed_salary != null || cmp.a_appraisal != null || cmp.b_appraisal != null) {
+        return [
+          { id: "cmp-1", fixed_salary: n(cmp.a_fixed_salary != null ? cmp.a_fixed_salary : s.fixed_salary), appraisal: n(cmp.a_appraisal != null ? cmp.a_appraisal : s.appraisal) },
+          { id: "cmp-2", fixed_salary: n(cmp.b_fixed_salary != null ? cmp.b_fixed_salary : s.fixed_salary), appraisal: n(cmp.b_appraisal != null ? cmp.b_appraisal : s.appraisal) },
+        ];
+      }
+      return defaultScenarios();
+    }
+
+    let scenarios = normalizeScenarios();
+
+    function readScenariosFromInputs() {
+      const cards = page.querySelectorAll(".cmp-scenario[data-id]");
+      return Array.from(cards).map((card, i) => {
+        const id = card.dataset.id || `cmp-${i + 1}`;
+        const fixed_salary = n(card.querySelector(`[data-key="fixed_salary"]`)?.value);
+        const appraisal = n(card.querySelector(`[data-key="appraisal"]`)?.value);
+        return { id, fixed_salary, appraisal };
+      });
+    }
+
+    function saveScenarios(rows) {
+      state.settings._compare = { scenarios: rows };
+      persist();
+    }
+
+    function renderScenarioCards() {
+      return scenarios.map((row, i) => `
+        <article class="cmp-scenario cmp-compact" data-id="${U.esc(row.id)}">
+          <div class="cmp-scenario-head">
+            <strong>${U.esc(`Appraisal ${appraisalLabel(row.appraisal)}`)}</strong>
+            <button class="btn ghost cmp-remove-btn" data-remove="${U.esc(row.id)}" ${scenarios.length <= 2 ? "disabled" : ""}>Remove</button>
+          </div>
+          <div class="cmp-field-row">
+            <label>Part A</label>
+            <input type="number" data-key="fixed_salary" value="${U.esc(row.fixed_salary)}" aria-label="${U.esc(row.name)} Part A">
+          </div>
+          <div class="cmp-field-row">
+            <label>Appraisal %</label>
+            <input type="number" step="0.1" data-key="appraisal" value="${U.esc(row.appraisal)}" aria-label="${U.esc(row.name)} appraisal">
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function metricRows(results) {
+      return [
+        ["Gross Monthly", (x) => x.gross],
+        ["Basic", (x) => x.earnings.Basic],
+        ["HRA", (x) => x.earnings.HRA],
+        ["Competency Allowance", (x) => x.earnings["Competency Allowance"]],
+        ["Conveyance", (x) => x.earnings.Conveyance],
+        ["Food Coupon", (x) => x.earnings["Food Coupon"]],
+        ["Cab Allowance", (x) => x.earnings["Cab Allowance"]],
+        ["Monthly TDS", (x) => x.tds],
+        ["Net Salary", (x) => x.net],
+        ["Salary Bank Credit", (x) => x.salary_bank_credit],
+        ["Annual Part A", (x) => x.annual_part_a],
+        ["Annual Gross CTC", (x) => x.annual_gross_ctc],
+        ["Annual Tax Liability", (x) => x.annual_tax],
+      ].map(([label, getter]) => ({ label, values: results.map((res) => getter(res.payroll)) }));
     }
 
     function buildResults() {
-      const aVal = n(page.querySelector("#cmp-a-salary").value);
-      const aApr = n(page.querySelector("#cmp-a-appraisal").value);
-      const bVal = n(page.querySelector("#cmp-b-salary").value);
-      const bApr = n(page.querySelector("#cmp-b-appraisal").value);
-      state.settings._compare = { a_fixed_salary: aVal, a_appraisal: aApr, b_fixed_salary: bVal, b_appraisal: bApr };
-      persist();
-      const pa = calc(aVal, aApr);
-      const pb = calc(bVal, bApr);
-
-      const rows = [
-        ["Gross Monthly", pa.gross, pb.gross],
-        ["Basic", pa.earnings["Basic"], pb.earnings["Basic"]],
-        ["HRA", pa.earnings["HRA"], pb.earnings["HRA"]],
-        ["Competency Allowance", pa.earnings["Competency Allowance"], pb.earnings["Competency Allowance"]],
-        ["Conveyance", pa.earnings["Conveyance"], pb.earnings["Conveyance"]],
-        ["Food Coupon", pa.earnings["Food Coupon"], pb.earnings["Food Coupon"]],
-        ["Education Allowance", pa.earnings["Education Allowance"], pb.earnings["Education Allowance"]],
-        ["Books & Periodicals", pa.earnings["Books & Periodicals"], pb.earnings["Books & Periodicals"]],
-        ["Phone Reimbursement", pa.reimbursements["Phone Reimbursement"], pb.reimbursements["Phone Reimbursement"]],
-        ["PF Deduction", pa.deductions["PF"], pb.deductions["PF"]],
-        ["Food Coupon Deduction", pa.deductions["Food Coupon Deduction"], pb.deductions["Food Coupon Deduction"]],
-        ["Monthly TDS", pa.tds, pb.tds],
-        ["Net Salary", pa.net, pb.net],
-        ["Salary Bank Credit", pa.salary_bank_credit, pb.salary_bank_credit],
-        ["Part B (Annual)", pa.annual_part_b, pb.annual_part_b],
-        ["Annual Gross CTC", pa.annual_gross_ctc, pb.annual_gross_ctc],
-        ["Annual Tax", pa.annual_tax, pb.annual_tax],
+      scenarios = readScenariosFromInputs();
+      saveScenarios(scenarios);
+      const results = scenarios.map((row) => ({
+        ...row,
+        payroll: M.payroll({ ...s, fixed_salary: row.fixed_salary, appraisal: row.appraisal }),
+      }));
+      const baselineIndex = results.findIndex((row) => Math.abs(row.appraisal) < 1e-9);
+      const activeBaselineIndex = baselineIndex === -1 ? 0 : baselineIndex;
+      const baseline = results[activeBaselineIndex];
+      const baselineLabel = `${appraisalLabel(baseline.appraisal)} Baseline`;
+      const summaryCards = [
+        U.statCard(baselineLabel, U.fmtINR(baseline.payroll.salary_bank_credit)),
+        ...results.map((row, i) => {
+          if (i === activeBaselineIndex) return "";
+          const diff = row.payroll.salary_bank_credit - baseline.payroll.salary_bank_credit;
+          const sign = diff > 0 ? "+" : "";
+          const klass = diff > 0 ? "stat-income" : diff < 0 ? "stat-outgo" : "";
+          const label = `${appraisalLabel(row.appraisal)} vs Baseline`;
+          return U.statCard(label, `${sign}${U.fmtINR(diff)}`, klass);
+        }),
       ];
+      page.querySelector("#cmp-stats").innerHTML = summaryCards.join("");
 
-      const statsDiff = pb.salary_bank_credit - pa.salary_bank_credit;
-      const statsSign = statsDiff >= 0 ? "+" : "";
-      page.querySelector("#cmp-stats").innerHTML =
-        U.statCard("Scenario A – Bank Credit", U.fmtINR(pa.salary_bank_credit))
-        + U.statCard("Scenario B – Bank Credit", U.fmtINR(pb.salary_bank_credit))
-        + U.statCard("Difference (B − A)", `${statsSign}${U.fmtINR(statsDiff)}`, statsDiff >= 0 ? "stat-income" : "stat-outgo");
-
-      page.querySelector("#cmp-body").innerHTML = rows.map(([label, a, b]) => {
-        const diff = b - a;
-        const sign = diff > 0 ? "+" : "";
-        const diffClass = diff > 0.5 ? "cmp-up" : diff < -0.5 ? "cmp-down" : "";
-        return `<tr>
-          <td>${U.esc(label)}</td>
-          <td class="num">${U.fmtINR(a)}</td>
-          <td class="num">${U.fmtINR(b)}</td>
-          <td class="num ${diffClass}">${diff !== 0 ? sign + U.fmtINR(diff) : "—"}</td>
-        </tr>`;
+      const rows = metricRows(results);
+      const headCells = results.map((row) => {
+        return `<th class="num">${U.esc(appraisalLabel(row.appraisal))}</th>`;
       }).join("");
+      page.querySelector("#cmp-head").innerHTML = `<tr><th>Component</th>${headCells}</tr>`;
+      page.querySelector("#cmp-body").innerHTML = rows.map((row) => `
+        <tr class="${row.label === "Salary Bank Credit" ? "cmp-highlight-row" : ""}">
+          <td>${U.esc(row.label)}</td>
+          ${row.values.map((v) => `<td class="num">${U.fmtINR(v)}</td>`).join("")}
+        </tr>
+      `).join("");
     }
 
     page.innerHTML = `
-      <div class="panel cmp-inputs">
-        <div class="cmp-scenarios">
-          <div class="cmp-scenario">
-            <div class="cmp-scenario-label">Scenario A</div>
-            <div class="grid cols-2">
-              <div><label>Fixed Annual Salary</label><input id="cmp-a-salary" type="number" value="${aFixedSalary}"></div>
-              <div><label>Appraisal (%)</label><input id="cmp-a-appraisal" type="number" step="0.1" value="${aAppraisal}"></div>
-            </div>
-          </div>
-          <div class="cmp-vs" aria-hidden="true">VS</div>
-          <div class="cmp-scenario">
-            <div class="cmp-scenario-label">Scenario B</div>
-            <div class="grid cols-2">
-              <div><label>Fixed Annual Salary</label><input id="cmp-b-salary" type="number" value="${bFixedSalary}"></div>
-              <div><label>Appraisal (%)</label><input id="cmp-b-appraisal" type="number" step="0.1" value="${bAppraisal}"></div>
-            </div>
-          </div>
-        </div>
-        <div class="payroll-save-row"><button class="btn" id="btn-cmp-run">Compare</button></div>
+      <div class="toolbar payroll-controls cmp-controls">
+        <button class="payroll-toggle ${compareInputsExpanded ? "is-open" : ""}" id="btn-cmp-input-toggle" aria-expanded="${compareInputsExpanded ? "true" : "false"}">
+          <span class="payroll-toggle-caret" aria-hidden="true"></span><span>Scenarios</span>
+        </button>
+        <button class="payroll-toggle ${compareSummaryExpanded ? "is-open" : ""}" id="btn-cmp-summary-toggle" aria-expanded="${compareSummaryExpanded ? "true" : "false"}">
+          <span class="payroll-toggle-caret" aria-hidden="true"></span><span>Summary</span>
+        </button>
       </div>
-      <div class="stats" id="cmp-stats"></div>
+      <div id="cmp-input-block" class="${compareInputsExpanded ? "" : "hidden"}">
+        <div class="panel cmp-inputs">
+          <div class="cmp-actions">
+            <button class="btn ghost" id="btn-cmp-add">+ Add scenario</button>
+            <button class="btn ghost" id="btn-cmp-reset">Reset</button>
+            <button class="btn" id="btn-cmp-run">Compare</button>
+          </div>
+          <div class="cmp-scenarios">${renderScenarioCards()}</div>
+        </div>
+      </div>
+      <div id="cmp-summary-block" class="${compareSummaryExpanded ? "" : "hidden"}">
+        <div class="cmp-summary-wrap">
+          <div class="stats" id="cmp-stats"></div>
+        </div>
+      </div>
       <div class="panel">
         <div class="table-shell">
-          <table>
-            <thead><tr><th>Component</th><th class="num">Scenario A</th><th class="num">Scenario B</th><th class="num">Difference</th></tr></thead>
+          <table class="cmp-table">
+            <thead id="cmp-head"></thead>
             <tbody id="cmp-body"></tbody>
           </table>
         </div>
       </div>
     `;
 
+    page.querySelector("#btn-cmp-input-toggle").addEventListener("click", () => {
+      updateSetting("compare_inputs_expanded", !compareInputsExpanded);
+      persist();
+      renderCompare();
+    });
+    page.querySelector("#btn-cmp-summary-toggle").addEventListener("click", () => {
+      updateSetting("compare_summary_expanded", !compareSummaryExpanded);
+      persist();
+      renderCompare();
+    });
+
+    page.querySelector("#btn-cmp-add").addEventListener("click", () => {
+      scenarios = readScenariosFromInputs();
+      scenarios.push({
+        id: `cmp-${Date.now()}`,
+        fixed_salary: n(s.fixed_salary),
+        appraisal: n(s.appraisal),
+      });
+      saveScenarios(scenarios);
+      renderCompare();
+    });
+
+    page.querySelector("#btn-cmp-reset").addEventListener("click", () => {
+      scenarios = defaultScenarios();
+      saveScenarios(scenarios);
+      renderCompare();
+    });
+
+    page.querySelectorAll("[data-remove]").forEach((btn) => btn.addEventListener("click", () => {
+      scenarios = readScenariosFromInputs().filter((row) => row.id !== btn.dataset.remove);
+      if (scenarios.length < 2) return;
+      saveScenarios(scenarios);
+      renderCompare();
+    }));
+
     page.querySelector("#btn-cmp-run").addEventListener("click", buildResults);
-    page.querySelectorAll("#cmp-a-salary, #cmp-a-appraisal, #cmp-b-salary, #cmp-b-appraisal").forEach((el) => {
+    page.querySelectorAll(".cmp-scenario input").forEach((el) => {
       el.addEventListener("keydown", (e) => { if (e.key === "Enter") buildResults(); });
     });
     buildResults();

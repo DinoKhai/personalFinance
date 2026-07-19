@@ -21,7 +21,11 @@
 
   function payroll(settings) {
     const appraisal = n(settings.appraisal) / 100;
-    const baseGrossMonthly = n(settings.fixed_salary) / 12;
+    const fixedSalaryAnnual = n(settings.fixed_salary);
+    const monthlyPhone = n(settings.phone);
+    const monthlyPf = n(settings.pf);
+    // fixed_salary is annual Part A (includes phone + employer PF, excludes cab)
+    const baseGrossMonthly = Math.max(0, (fixedSalaryAnnual / 12) - monthlyPhone - monthlyPf);
 
     // Proportional weights for each salary component
     const weights = {
@@ -53,21 +57,29 @@
     // Total payslip gross = fixed components + cab
     const grossMonthlyTotal = grossMonthly + monthlyCab;
 
-    // CTC Part A = fixed salary + phone reimbursement + employer PF (all annualised)
-    const annualPartA = annualFixedGross + n(settings.phone) * 12 + n(settings.pf) * 12;
+    // CTC Part A = fixed components + phone reimbursement + employer PF
+    const annualPartA = annualFixedGross + monthlyPhone * 12 + monthlyPf * 12;
 
     // Tax basis (Form 16 gross) = fixed + cab  (phone and employer PF are excluded)
     const annualTaxGross = annualFixedGross + annualCab;
+    const annualFoodCouponExempt = earnings["Food Coupon"] * 12;
 
     const reimbursements = {
       "Phone Reimbursement": n(settings.phone),
     };
     const standardDeduction = settings.tax_regime === "New" ? 75000 : 50000;
-    const taxable = Math.max(0, annualTaxGross - standardDeduction);
+    const taxable = Math.max(0, annualTaxGross - annualFoodCouponExempt - standardDeduction);
     const incomeTax = taxBase(taxable, settings.tax_regime);
     const cess = incomeTax * 0.04;
     const annualTax = incomeTax + cess;
-    const tds = annualTax / 12;
+
+    // Payroll monthly TDS excludes cab allowance; cab tax is adjusted later.
+    const payrollTaxable = Math.max(0, annualFixedGross - annualFoodCouponExempt - standardDeduction);
+    const payrollIncomeTax = taxBase(payrollTaxable, settings.tax_regime);
+    const payrollCess = payrollIncomeTax * 0.04;
+    const payrollAnnualTax = payrollIncomeTax + payrollCess;
+    const tds = payrollAnnualTax / 12;
+    const annualTaxAdjustment = annualTax - payrollAnnualTax;
     const foodDed = earnings["Food Coupon"];
     const totalDeductions = tds + n(settings.pf) + foodDed;
     const netSalary = grossMonthlyTotal - totalDeductions;
@@ -105,21 +117,28 @@
       tax_breakdown: {
         "Annual Fixed Salary (excl. Phone & Cab)": annualFixedGross,
         "Annual Cab Allowance": annualCab,
+        "Annual Food Coupon Exempted": annualFoodCouponExempt,
         "Annual Gross (Tax Basis / Form 16)": annualTaxGross,
         "Standard Deduction": standardDeduction,
         "Final Taxable Income": taxable,
-        "Income Tax": incomeTax,
-        "Health & Education Cess": cess,
-        "Total Tax": annualTax,
-        "Monthly TDS": tds,
+        "Income Tax (Annual Liability)": incomeTax,
+        "Health & Education Cess (Annual Liability)": cess,
+        "Total Tax (Annual Liability)": annualTax,
+        "Payroll Taxable (Excluding Cab)": payrollTaxable,
+        "Tax Deducted in Payroll (Annual)": payrollAnnualTax,
+        "Monthly TDS Deducted in Payroll": tds,
+        "Expected Tax Adjustment (Annual)": annualTaxAdjustment,
       },
       yearly_summary: {
         "Part A (Fixed + Phone + Employer PF)": annualPartA,
         "Part B (Employer Benefits)": partB,
         "Gross CTC (Part A + Part B)": annualCtc,
         "Annual Gross Tax Basis (Form 16)": annualTaxGross,
-        "Gross TDS / Tax (Annual)": annualTax,
-        "Monthly TDS": tds,
+        "Annual Food Coupon Exempted": annualFoodCouponExempt,
+        "Tax Deducted in Payroll (Annual)": payrollAnnualTax,
+        "Expected Tax Adjustment (Annual)": annualTaxAdjustment,
+        "Gross TDS / Tax (Annual Liability)": annualTax,
+        "Monthly TDS Deducted in Payroll": tds,
       },
     };
   }

@@ -4,7 +4,7 @@
   const defaults = {
     schemaVersion: 1,
     settings: {
-      fixed_salary: 2378196,
+      fixed_salary: 2435796,
       basic: 91342,
       hra: 68507,
       conveyance: 8000,
@@ -16,7 +16,7 @@
       pf: 1800,
       part_b: 57888,
       cab_rate: 500,
-      office_days: 13,
+      office_days: 12,
       appraisal: 0,
       tax_regime: "New",
       cash: 0,
@@ -31,26 +31,48 @@
       nav_collapsed: false,
       payroll_view: "monthly",
       payroll_inputs_expanded: true,
+      compare_inputs_expanded: true,
+      compare_summary_expanded: true,
       theme: "dark",
     },
     entities: {
       expenses: [
         { id: 1, name: "Rent", amount: 21000, category: "Home", recurring: "Monthly" },
-        { id: 2, name: "Mutual Fund SIPs", amount: 21000, category: "Investments", recurring: "Monthly" },
-        { id: 3, name: "Metro", amount: 1000, category: "Transport", recurring: "Monthly" },
+        { id: 2, name: "Metro", amount: 1000, category: "Transport", recurring: "Monthly" },
+        { id: 3, name: "Mutual Fund SIPs", amount: 21000, category: "Investments", recurring: "Monthly" },
+        { id: 4, name: "Wi-Fi", amount: 1008, category: "Utilities", recurring: "Monthly" },
+        { id: 5, name: "Spotify", amount: 149, category: "Subscriptions", recurring: "Monthly" },
+        { id: 6, name: "Netflix", amount: 199, category: "Subscriptions", recurring: "Monthly" },
+        { id: 7, name: "Personal + Food", amount: 12500, category: "Lifestyle", recurring: "Monthly" },
+        { id: 8, name: "Amazon Prime (Monthly Avg)", amount: 125, category: "Subscriptions", recurring: "Monthly" },
+        { id: 9, name: "Disney+ Hotstar (Monthly Avg)", amount: 75, category: "Subscriptions", recurring: "Monthly" },
+        { id: 10, name: "iCloud (Monthly Avg)", amount: 208, category: "Subscriptions", recurring: "Monthly" },
       ],
       loans: [
-        { id: 1, name: "SBI", emi: 3905, principal: 0, kind: "Payable" },
-        { id: 2, name: "Axis", emi: 14591, principal: 0, kind: "Payable" },
-        { id: 3, name: "Nuther", emi: 9300, principal: 310000, kind: "Receivable" },
+        { id: 1, name: "Kotak Loan", emi: 23811, principal: 0, kind: "Payable" },
+        { id: 2, name: "Axis Loan", emi: 14591, principal: 0, kind: "Payable" },
+        { id: 3, name: "SBI Loan", emi: 3905, principal: 0, kind: "Payable" },
+        { id: 4, name: "Nuther Loan 1", emi: 9300, principal: 310000, kind: "Receivable" },
+        { id: 5, name: "Nuther Loan 2", emi: 4250, principal: 170000, kind: "Receivable" },
+        { id: 6, name: "Rodha", emi: 3000, principal: 100000, kind: "Receivable" },
       ],
       funds: [
-        { id: 1, name: "SBI Small Cap", invested: 69000, current: 73891.97, units: 409.081, sip: 3000 },
-        { id: 2, name: "SBI Contra", invested: 69000, current: 68905.99, units: 182.724, sip: 3000 },
+        { id: 1, name: "SBI Small Cap Fund Regular Growth", invested: 69000, current: 73891.97, units: 409.081, sip: 3000 },
+        { id: 2, name: "SBI Contra Fund Regular Growth", invested: 69000, current: 68905.99, units: 182.724, sip: 3000 },
+        { id: 3, name: "SBI Focused Fund Regular Growth", invested: 46000, current: 51403.87, units: 0, sip: 2000 },
+        { id: 4, name: "SBI PSU Fund Regular Growth", invested: 46000, current: 49177.23, units: 0, sip: 2000 },
+        { id: 5, name: "SBI ELSS Tax Saver Fund", invested: 46000, current: 47033, units: 0, sip: 2000 },
+        { id: 6, name: "SBI Multi Asset Allocation Fund", invested: 39000, current: 40900.9, units: 0, sip: 3000 },
+        { id: 7, name: "SBI Equity Hybrid Fund", invested: 39000, current: 40178.25, units: 0, sip: 3000 },
+        { id: 8, name: "SBI Automotive Opportunities Fund", invested: 23000, current: 27353.63, units: 0, sip: 1000 },
+        { id: 9, name: "SBI Innovative Opportunities Fund", invested: 23000, current: 24461.01, units: 0, sip: 1000 },
+        { id: 10, name: "SBI Energy Opportunities Fund", invested: 23000, current: 24425.78, units: 0, sip: 1000 },
       ],
       properties: [
         { id: 1, name: "Tollen Land", purchase: 800000, current: 1500000 },
         { id: 2, name: "Leisang Land", purchase: 750000, current: 0 },
+        { id: 3, name: "Store Building (GF 14x14, FF 56x14)", purchase: 0, current: 0 },
+        { id: 4, name: "Khongsai Veng Land (70x40)", purchase: 0, current: 0 },
       ],
     },
     meta: {
@@ -67,7 +89,7 @@
     "cab_rate", "office_days", "appraisal", "cash", "side_income",
     "projection_years", "projection_cagr", "projection_abs_return", "projection_monthly_dev", "projection_yearly_dev",
   ]);
-  const BOOLEAN_SETTING_KEYS = new Set(["include_funds", "include_cashflow", "nav_collapsed", "payroll_inputs_expanded"]);
+  const BOOLEAN_SETTING_KEYS = new Set(["include_funds", "include_cashflow", "nav_collapsed", "payroll_inputs_expanded", "compare_inputs_expanded", "compare_summary_expanded"]);
   const NUMERIC_ENTITY_KEYS = new Set(["id", "amount", "emi", "principal", "invested", "current", "units", "sip", "purchase"]);
 
   function parseScalar(value) {
@@ -106,7 +128,52 @@
           }
         }
         return copy;
-      });
+      }).map((row, index) => ({ ...row, id: index + 1 }));
+    }
+    return out;
+  }
+
+  function mergeNamedRows(existingRows, defaultRows, keyFn) {
+    const merged = Array.isArray(existingRows) ? existingRows.map((row) => ({ ...row })) : [];
+    const rowKey = keyFn || ((row) => String(row.name || "").trim().toLowerCase());
+    const byName = new Set(merged.map((row) => rowKey(row)).filter(Boolean));
+    let next = merged.reduce((m, row) => Math.max(m, Number(row.id) || 0), 0) + 1;
+    for (const seed of defaultRows) {
+      const key = rowKey(seed);
+      if (!key || byName.has(key)) continue;
+      merged.push({ ...seed, id: next });
+      byName.add(key);
+      next += 1;
+    }
+    return merged;
+  }
+
+  function canonicalFundName(name) {
+    return String(name || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .replace(/\b(regular|growth|fund)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function canonicalLoanName(name, kind) {
+    return `${String(kind || "").toLowerCase()}::${String(name || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .replace(/\bloan\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()}`;
+  }
+
+  function dedupeRowsByKey(rows, keyFn) {
+    const out = [];
+    const seen = new Set();
+    for (const row of rows) {
+      const key = keyFn(row);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
     }
     return out;
   }
@@ -123,6 +190,12 @@
       funds: Array.isArray(safe.entities.funds) ? safe.entities.funds : deepClone(defaults.entities.funds),
       properties: Array.isArray(safe.entities.properties) ? safe.entities.properties : deepClone(defaults.entities.properties),
     };
+    safe.entities.expenses = mergeNamedRows(safe.entities.expenses, defaults.entities.expenses);
+    safe.entities.loans = mergeNamedRows(safe.entities.loans, defaults.entities.loans, (row) => canonicalLoanName(row.name, row.kind));
+    safe.entities.loans = dedupeRowsByKey(safe.entities.loans, (row) => canonicalLoanName(row.name, row.kind));
+    safe.entities.funds = mergeNamedRows(safe.entities.funds, defaults.entities.funds, (row) => canonicalFundName(row.name));
+    safe.entities.funds = dedupeRowsByKey(safe.entities.funds, (row) => canonicalFundName(row.name));
+    safe.entities.properties = mergeNamedRows(safe.entities.properties, defaults.entities.properties);
     safe.settings = castSettings(safe.settings);
     safe.entities = castEntities(safe.entities);
     if (!safe.meta) safe.meta = {};
